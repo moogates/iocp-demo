@@ -1,0 +1,7 @@
+*.vcxproj.user
+*.vcxproj.filters
+*/Win32
+*/x64
+Win32
+x64
+
