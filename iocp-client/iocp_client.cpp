@@ -59,6 +59,16 @@ static DWORD WINAPI ClientWorkerThread(LPVOID lpParameter)
     return 0;
 }
 
+void SetNonblocking(int fd)
+{
+    unsigned long ul = 1;
+    int ret = ioctlsocket(fd, FIONBIO, &ul);
+    if (ret == SOCKET_ERROR)
+    {
+        printf("set socket:%d non blocking failed:%s\n", WSAGetLastError());
+    }
+}
+
 int main(void)
 {
     WSADATA WsaDat;
@@ -88,33 +98,69 @@ int main(void)
     SockAddr.sin_port = htons(8888);
 
     CreateIoCompletionPort((HANDLE)socket, hCompletionPort, 0, 0);
+    // SetNonblocking(socket);
 
-    if (WSAConnect(socket, (SOCKADDR*)(&SockAddr), sizeof(SockAddr), NULL, NULL, NULL, NULL) == SOCKET_ERROR)
+    // WSAConnect 能触发 completion port 事件吗？不清楚
+    int ret = WSAConnect(socket, (SOCKADDR*)(&SockAddr), sizeof(SockAddr), NULL, NULL, NULL, NULL);
+    if (ret == SOCKET_ERROR && (ERROR_IO_PENDING != WSAGetLastError())) {
+        std::cout << "WSAConnect error" << std::endl;
         return 0;
-
-    PER_IO_DATA* pPerIoData = new PER_IO_DATA;
-    ZeroMemory(pPerIoData, sizeof(PER_IO_DATA));
-
-    pPerIoData->Socket = socket;
-    pPerIoData->Overlapped.hEvent = WSACreateEvent();
-    pPerIoData->wsaBuf.buf = pPerIoData->Buffer;
-    pPerIoData->wsaBuf.len = sizeof(pPerIoData->Buffer);
-
-    DWORD dwNumRecv;
-    if (WSARecv(socket, &(pPerIoData->wsaBuf), 1, &dwNumRecv, &(pPerIoData->Flags), &(pPerIoData->Overlapped), NULL) == SOCKET_ERROR)
-    {
-        if (WSAGetLastError() != WSA_IO_PENDING)
-        {
-            delete pPerIoData;
-            return 0;
-        }
     }
 
     while (TRUE)
         Sleep(1000);
 
-    shutdown(socket, SD_BOTH);
-    closesocket(socket);
+    while (true) {
+        std::string line;
+        std::getline(std::cin, line);
+        std::cout << "Input line=" << line << std::endl;
+
+
+        PER_IO_DATA* pPerIoData = new PER_IO_DATA;
+        ZeroMemory(pPerIoData, sizeof(PER_IO_DATA));
+
+        pPerIoData->Socket = socket;
+        pPerIoData->Overlapped.hEvent = WSACreateEvent();
+        pPerIoData->wsaBuf.buf = (CHAR*)line.c_str();
+        pPerIoData->wsaBuf.len = line.size();
+
+        DWORD dwNumSent;
+        if (WSASend(socket,
+                &(pPerIoData->wsaBuf),  // WSA Buffer array
+                1,                      // WSA Buffer array size
+                &dwNumSent,
+                0,
+                &(pPerIoData->Overlapped),
+                NULL) == SOCKET_ERROR)
+        {
+            if (WSAGetLastError() != WSA_IO_PENDING)
+            {
+                delete pPerIoData;
+                closesocket(socket);
+            }
+            std::cout << "async sending" << std::endl;
+        }
+        else
+        {
+            std::cout << "async sent ok: " << dwNumSent << std::endl;
+        }
+        //DWORD dwNumRecv;
+        //if (WSARecv(socket, &(pPerIoData->wsaBuf), 1, &dwNumRecv, &(pPerIoData->Flags), &(pPerIoData->Overlapped), NULL) == SOCKET_ERROR)
+        //{
+        //    if (WSAGetLastError() != WSA_IO_PENDING)
+        //    {
+        //        delete pPerIoData;
+        //        return 0;
+        //    }
+        //}
+    }
+
+    while (TRUE)
+        Sleep(1000);
+
+    // FIXME: cleanup
+    // shutdown(socket, SD_BOTH);
+    // closesocket(socket);
 
     WSACleanup();
     return 0;
