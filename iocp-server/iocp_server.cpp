@@ -8,11 +8,12 @@
 // https://stackoverflow.com/questions/10998504/winsock2-how-to-use-iocp-on-client-side
 
 enum ConnectionStatus {
-    S_ACCEPTED = 0,
+    S_RESET = 0,
+    S_ACCEPTED,
     S_RECEIVING,
     S_SENDING
 };
-typedef struct
+struct PER_IO_DATA
 {
     WSAOVERLAPPED Overlapped;
     SOCKET Socket;
@@ -23,7 +24,16 @@ typedef struct
     DWORD BytesToSend;
     ConnectionStatus status;
 
-} PER_IO_DATA, * LPPER_IO_DATA;
+    PER_IO_DATA() {
+        std::cout << "PER_IO_DATA created" << std::endl;
+    }
+    ~PER_IO_DATA() {
+        closesocket(Socket);
+        status = S_RESET;
+        std::cout << "PER_IO_DATA destroyed" << std::endl;
+    }
+};
+typedef PER_IO_DATA *LPPER_IO_DATA;
 
 std::string str_toupper(std::string s)
 {
@@ -82,7 +92,9 @@ static void HandleBytesReveived(PER_IO_DATA* io_data) {
     );
 
     if (bytesReceived == 0) {
+        std::cout << "bytesReceived 0:, should cleanup" << std::endl;
         // TODO : conn closed?
+        delete io_data;
         return;
     }
 
@@ -121,7 +133,7 @@ static void HandleBytesReveived(PER_IO_DATA* io_data) {
 static void HandleBytesSent(PER_IO_DATA* io_data) {
 
     if (io_data->BytesSent == 0) {
-        // TODO : conn closed?
+        std::cout << "HandleBytesSent 0" << std::endl;
         return;
     }
 
@@ -175,18 +187,22 @@ static DWORD WINAPI ServerWorkerThread(LPVOID lpParameter)
     HANDLE hCompletionPort = (HANDLE)lpParameter;
     DWORD NumBytesSent = 0;
     ULONG CompletionKey;
-    LPPER_IO_DATA PerIoData;
+    LPPER_IO_DATA perIoData;
 
-    while (GetQueuedCompletionStatus(hCompletionPort, &NumBytesSent, (ULONG*)&CompletionKey, (LPOVERLAPPED*)&PerIoData, INFINITE))
+    while (GetQueuedCompletionStatus(hCompletionPort,
+                &NumBytesSent,
+                (PULONG_PTR)&CompletionKey,
+                (LPOVERLAPPED*)&perIoData,
+                INFINITE))
     {
-        if (!PerIoData) {
+        if (!perIoData) {
             std::cout << "ERROR! NULL PerIoData! ------------------\r\n\r\n";
             continue;
         }
-        if (PerIoData->status == S_RECEIVING) {
-            HandleBytesReveived(PerIoData);
-        } else if (PerIoData->status == S_RECEIVING) {
-            HandleBytesSent(PerIoData);
+        if (perIoData->status == S_RECEIVING) {
+            HandleBytesReveived(perIoData);
+        } else if (perIoData->status == S_RECEIVING) {
+            HandleBytesSent(perIoData);
         }
         continue;
 
@@ -197,22 +213,22 @@ static DWORD WINAPI ServerWorkerThread(LPVOID lpParameter)
         }
         else
         {
-            PerIoData->BytesSent += NumBytesSent;
-            if (PerIoData->BytesSent < PerIoData->BytesToSend)
+            perIoData->BytesSent += NumBytesSent;
+            if (perIoData->BytesSent < perIoData->BytesToSend)
             {
-                PerIoData->wsaBuf.buf = &(PerIoData->Buffer[PerIoData->BytesSent]);
-                PerIoData->wsaBuf.len = (PerIoData->BytesToSend - PerIoData->BytesSent);
+                perIoData->wsaBuf.buf = &(perIoData->Buffer[perIoData->BytesSent]);
+                perIoData->wsaBuf.len = (perIoData->BytesToSend - perIoData->BytesSent);
             }
             else
             {
-                PerIoData->wsaBuf.buf = PerIoData->Buffer;
-                PerIoData->wsaBuf.len = strlen(PerIoData->Buffer);
-                PerIoData->BytesSent = 0;
-                PerIoData->BytesToSend = PerIoData->wsaBuf.len;
+                perIoData->wsaBuf.buf = perIoData->Buffer;
+                perIoData->wsaBuf.len = strlen(perIoData->Buffer);
+                perIoData->BytesSent = 0;
+                perIoData->BytesToSend = perIoData->wsaBuf.len;
             }
 
-            if (::WSASend(PerIoData->Socket, &(PerIoData->wsaBuf), 1,
-                    &NumBytesSent, 0, &(PerIoData->Overlapped), NULL) != 0)
+            if (::WSASend(perIoData->Socket, &(perIoData->wsaBuf), 1,
+                    &NumBytesSent, 0, &(perIoData->Overlapped), NULL) != 0)
                 break;
 
             if (::WSAGetLastError() != WSA_IO_PENDING)
@@ -220,8 +236,8 @@ static DWORD WINAPI ServerWorkerThread(LPVOID lpParameter)
         }
     }
 
-    closesocket(PerIoData->Socket);
-    delete PerIoData;
+    closesocket(perIoData->Socket);
+    delete perIoData;
 
     return 0;
 }
@@ -265,14 +281,14 @@ int main()
 
     while (true) {
         SOCKET acceptSocket;
-        do
-        {
+        do {
             sockaddr_in saClient;
             int nClientSize = sizeof(saClient);
             acceptSocket = WSAAccept(listenSocket, (SOCKADDR*)&saClient, &nClientSize, NULL, NULL);
         } while (acceptSocket == INVALID_SOCKET);
 
-        SetNonblocking(acceptSocket);
+        // seems unnecessary
+        // SetNonblocking(acceptSocket);
 
         // binding socket to Completion Port
         if (NULL == ::CreateIoCompletionPort((HANDLE)acceptSocket, hCompletionPort, 0, 0)) {
@@ -310,7 +326,6 @@ int main()
         else {
             // TODO: IOCP模式下，能直接成功走到这里吗？如果能走到这里，如何得到 bytesReceived？
             std::cout << "Read ok , bytes=??.\r\n\r\n";
-
         }
 
         std::cout << "Client connected. Try to receive ...\r\n\r\n";
