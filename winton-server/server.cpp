@@ -1,11 +1,11 @@
-#include <winsock2.h>
+ï»¿#include <winsock2.h>
 #include <windows.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <signal.h>
 #include <fcntl.h>
 
-// WindowsÏÂµÄ¸ßÐ§ÍøÂçÄ£ÐÍIOCPÍêÕûÊ¾Àý
+// Windowsä¸‹çš„é«˜æ•ˆç½‘ç»œæ¨¡åž‹IOCPå®Œæ•´ç¤ºä¾‹
 // https://wittonbell.github.io/posts/2023/2023-03-23-Windows%E4%B8%8B%E7%9A%84%E9%AB%98%E6%95%88%E7%BD%91%E7%BB%9C%E6%A8%A1%E5%9E%8BIOCP%E5%AE%8C%E6%95%B4%E7%A4%BA%E4%BE%8B/
 
 #pragma comment(lib, "ws2_32.lib")

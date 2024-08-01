@@ -1,4 +1,4 @@
-#include <iostream>
+ï»¿#include <iostream>
 #include <string>
 #include <winsock2.h>
 #pragma comment(lib, "ws2_32.lib")
@@ -65,7 +65,7 @@ void SetNonblocking(int fd)
     int ret = ioctlsocket(fd, FIONBIO, &ul);
     if (ret == SOCKET_ERROR)
     {
-        printf("set socket:%d non blocking failed:%s\n", WSAGetLastError());
+        printf("set socket:%d non blocking failed:%d\n", fd, WSAGetLastError());
     }
 }
 
@@ -100,7 +100,7 @@ int main(void)
     CreateIoCompletionPort((HANDLE)socket, hCompletionPort, 0, 0);
     // SetNonblocking(socket);
 
-    // WSAConnect ÄÜ´¥·¢ completion port ÊÂ¼þÂð£¿²»Çå³þ
+    // WSAConnect  completion port 
     int ret = WSAConnect(socket, (SOCKADDR*)(&SockAddr), sizeof(SockAddr), NULL, NULL, NULL, NULL);
     if (ret == SOCKET_ERROR && (ERROR_IO_PENDING != WSAGetLastError())) {
         std::cout << "WSAConnect error" << std::endl;

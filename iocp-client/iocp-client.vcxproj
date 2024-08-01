@@ -126,10 +126,13 @@
       <GenerateDebugInformation>true</GenerateDebugInformation>
     </Link>
   </ItemDefinitionGroup>
+
   <ItemGroup>
     <ClCompile Include="iocp_client.cpp" />
   </ItemGroup>
+
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>
 </Project>

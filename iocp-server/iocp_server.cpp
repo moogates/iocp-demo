@@ -1,4 +1,4 @@
-#include <iostream>
+ï»¿#include <iostream>
 #include <winsock2.h>
 
 #include <algorithm>
@@ -56,18 +56,16 @@ void SetNonblocking(int fd)
     }
 }
 
-
-
 void IssueReceive(PER_IO_DATA* io_data) {
     io_data->wsaBuf.buf = io_data->Buffer;
     io_data->wsaBuf.len = sizeof(io_data->Buffer);
     io_data->status = S_RECEIVING;
 
     DWORD flags = 0;
-    if (::WSARecv(io_data->Socket,  // TODO: ÑéÖ¤ÓĞÎŞ¿ÉÄÜÖ±½ÓÁ¢¼´¶ÁÈ¡µ½ÁËÊı¾İ£¬Î´´¥·¢ completion port ÊÂ¼ş£¿
+    if (::WSARecv(io_data->Socket,  // TODO: éªŒè¯æœ‰æ— å¯èƒ½ç›´æ¥ç«‹å³è¯»å–åˆ°äº†æ•°æ®ï¼Œæœªè§¦å‘ completion port äº‹ä»¶ï¼Ÿ
         &(io_data->wsaBuf),
         1,
-        NULL,   // ¸Ã²ÎÊıÓ¦¸ÃÊÇNULL£¬¾ßÌåÇë²Î¿¼ÎÄµµ:
+        NULL,   // è¯¥å‚æ•°åº”è¯¥æ˜¯NULLï¼Œå…·ä½“è¯·å‚è€ƒæ–‡æ¡£:
                 //   https://learn.microsoft.com/zh-cn/windows/win32/api/winsock2/nf-winsock2-wsarecv#------i-o 
         &flags, // TODO : could be NULL?
         &(io_data->Overlapped), NULL) == SOCKET_ERROR)
@@ -165,10 +163,10 @@ static void HandleBytesSent(PER_IO_DATA* io_data) {
     io_data->status = S_RECEIVING;
 
     DWORD flags = 0;
-    if (::WSARecv(io_data->Socket,  // TODO: ÑéÖ¤ÓĞÎŞ¿ÉÄÜÖ±½ÓÁ¢¼´¶ÁÈ¡µ½ÁËÊı¾İ£¬Î´´¥·¢ completion port ÊÂ¼ş£¿
+    if (::WSARecv(io_data->Socket,  // TODO: éªŒè¯æœ‰æ— å¯èƒ½ç›´æ¥ç«‹å³è¯»å–åˆ°äº†æ•°æ®ï¼Œæœªè§¦å‘ completion port äº‹ä»¶ï¼Ÿ
         &(io_data->wsaBuf),
         1,
-        NULL,   // ¸Ã²ÎÊıÓ¦¸ÃÊÇNULL£¬¾ßÌåÇë²Î¿¼ÎÄµµ:
+        NULL,   // è¯¥å‚æ•°åº”è¯¥æ˜¯NULLï¼Œå…·ä½“è¯·å‚è€ƒæ–‡æ¡£:
                 // https://learn.microsoft.com/zh-cn/windows/win32/api/winsock2/nf-winsock2-wsarecv#------i-o 
         &flags, // TODO : could be NULL?
         &(io_data->Overlapped), NULL) == SOCKET_ERROR)
@@ -248,7 +246,7 @@ int main()
     if (WSAStartup(MAKEWORD(2, 2), &WsaDat) != 0)
         return 0;
 
-    HANDLE hCompletionPort = CreateIoCompletionPort(INVALID_HANDLE_VALUE, NULL, 0, 0);
+    HANDLE hCompletionPort = ::CreateIoCompletionPort(INVALID_HANDLE_VALUE, NULL, 0, 0);
     if (!hCompletionPort)
         return 0;
 
@@ -257,11 +255,18 @@ int main()
 
     for (DWORD i = 0; i < systemInfo.dwNumberOfProcessors; ++i)
     {
-        HANDLE hThread = CreateThread(NULL, 0, ServerWorkerThread, hCompletionPort, 0, NULL);
+        HANDLE hThread = ::CreateThread(
+                NULL,               // LPSECURITY_ATTRIBUTES, thread attributes
+                0,                  // DWORD, stack size
+                ServerWorkerThread, // LPTHREAD_START_ROUTINE, thread routine
+                hCompletionPort,    // LPVOID, thread parameter
+                0,                  // DWORD, creation flags
+                NULL                // LPDWORD, thread id
+        );
         CloseHandle(hThread);
     }
 
-    SOCKET listenSocket = WSASocket(AF_INET, SOCK_STREAM, IPPROTO_TCP, NULL, 0, WSA_FLAG_OVERLAPPED);
+    SOCKET listenSocket = ::WSASocket(AF_INET, SOCK_STREAM, IPPROTO_TCP, NULL, 0, WSA_FLAG_OVERLAPPED);
     if (listenSocket == INVALID_SOCKET)
         return 0;
 
@@ -307,11 +312,11 @@ int main()
         pPerIoData->status = S_RECEIVING;
 
         DWORD flags = 0;
-        if (::WSARecv(acceptSocket,  // TODO: ÑéÖ¤ÓĞÎŞ¿ÉÄÜÖ±½ÓÁ¢¼´¶ÁÈ¡µ½ÁËÊı¾İ£¬Î´´¥·¢ completion port ÊÂ¼ş£¿
+        if (::WSARecv(acceptSocket,  // TODO: éªŒè¯æœ‰æ— å¯èƒ½ç›´æ¥ç«‹å³è¯»å–åˆ°äº†æ•°æ®ï¼Œæœªè§¦å‘ completion port äº‹ä»¶ï¼Ÿ
                 &(pPerIoData->wsaBuf),
                 1,
-                NULL, // bytesReceived, Èç¹û½ÓÊÕ²Ù×÷Á¢¼´Íê³É£¬¸Ã×Ö¶Î·µ»Ø×Ö½ÚÊı£» Èç¹û lpOverlapped ²ÎÊı
-                      //    ²»ÊÇ NULL£¬Çë¶Ô´Ë²ÎÊıÊ¹ÓÃ NULL
+                NULL, // bytesReceived, å¦‚æœæ¥æ”¶æ“ä½œç«‹å³å®Œæˆï¼Œè¯¥å­—æ®µè¿”å›å­—èŠ‚æ•°ï¼› å¦‚æœ lpOverlapped å‚æ•°
+                      //    ä¸æ˜¯ NULLï¼Œè¯·å¯¹æ­¤å‚æ•°ä½¿ç”¨ NULL
                 &flags, // TODO : could be NULL?
                 &(pPerIoData->Overlapped), NULL) == SOCKET_ERROR)
         {
@@ -324,7 +329,7 @@ int main()
             }
         }
         else {
-            // TODO: IOCPÄ£Ê½ÏÂ£¬ÄÜÖ±½Ó³É¹¦×ßµ½ÕâÀïÂğ£¿Èç¹ûÄÜ×ßµ½ÕâÀï£¬ÈçºÎµÃµ½ bytesReceived£¿
+            // TODO: IOCPæ¨¡å¼ä¸‹ï¼Œèƒ½ç›´æ¥æˆåŠŸèµ°åˆ°è¿™é‡Œå—ï¼Ÿå¦‚æœèƒ½èµ°åˆ°è¿™é‡Œï¼Œå¦‚ä½•å¾—åˆ° bytesReceivedï¼Ÿ
             std::cout << "Read ok , bytes=??.\r\n\r\n";
         }
 
